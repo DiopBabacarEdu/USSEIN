@@ -1,6 +1,7 @@
 # Projet Client-Serveur TCP avec utilisation d'API OpenStreetMap
 
-Dans ce projet, l'idée c'est de créer un serveur répondant aux requêtes ("search" et "reverse") des clients TCP, en utilisant les API d'OpenStreetMap.
+Dans ce projet, l'objectif c'est de créer un serveur répondant aux requêtes ("search" et "reverse") des clients TCP, en utilisant les API d'OpenStreetMap.
+
 <img width="1000" height="500" alt="image" src="https://github.com/user-attachments/assets/13f27d60-67d3-4145-9992-f441c6a79adb" />
 
 ## Table des Matières
