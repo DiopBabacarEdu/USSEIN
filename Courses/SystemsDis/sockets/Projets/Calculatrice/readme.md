@@ -16,30 +16,68 @@ Créer une application client-serveur de calculatrice utilisant des sockets TCP 
 
 ```python
 import socket
-import json
+
+def addition(a, b):
+    """Additionne deux nombres"""
+    return a + b
+
+def soustraction(a, b):
+    """Soustrait b de a"""
+    return a - b
+
+def multiplication(a, b):
+    """Multiplie deux nombres"""
+    return a * b
+
+def division(a, b):
+    """Divise a par b"""
+    if b == 0:
+        return "ERREUR:Division par zéro"
+    return a / b
+
+def puissance(a, b):
+    """Calcule a puissance b"""
+    return a ** b
+
+def modulo(a, b):
+    """Calcule le reste de la division de a par b"""
+    if b == 0:
+        return "ERREUR:Division par zéro"
+    return a % b
+
+def racine_carree(a, b=None):
+    """Calcule la racine carrée de a"""
+    if a < 0:
+        return "ERREUR:Racine carrée d'un nombre négatif"
+    return a ** 0.5
 
 def calculer(operation, a, b):
     """Effectue le calcul selon l'opération demandée"""
     try:
         a = float(a)
-        b = float(b)
+        b = float(b) if b else 0
         
-        if operation == '+':
-            return a + b
-        elif operation == '-':
-            return a - b
-        elif operation == '*':
-            return a * b
-        elif operation == '/':
-            if b == 0:
-                return "Erreur: Division par zéro"
-            return a / b
-        elif operation == '**':
-            return a ** b
+        operations = {
+            'ADD': addition,
+            'SUB': soustraction,
+            'MUL': multiplication,
+            'DIV': division,
+            'POW': puissance,
+            'MOD': modulo,
+            'SQRT': racine_carree
+        }
+        
+        if operation in operations:
+            resultat = operations[operation](a, b)
+            if isinstance(resultat, str) and resultat.startswith("ERREUR"):
+                return resultat
+            return f"RESULTAT:{resultat}"
         else:
-            return "Erreur: Opération non supportée"
+            return "ERREUR:Opération non supportée"
     except ValueError:
-        return "Erreur: Valeurs invalides"
+        return "ERREUR:Valeurs invalides"
+    except Exception as e:
+        return f"ERREUR:{str(e)}"
 
 def demarrer_serveur(host='127.0.0.1', port=65432):
     """Démarre le serveur de calculatrice"""
@@ -57,6 +95,8 @@ def demarrer_serveur(host='127.0.0.1', port=65432):
     serveur_socket.listen(5)
     
     print(f"Serveur de calculatrice démarré sur {host}:{port}")
+    print("Protocole: OPERATION|NOMBRE1|NOMBRE2")
+    print("Opérations disponibles: ADD, SUB, MUL, DIV, POW, MOD, SQRT")
     print("En attente de connexions...\n")
     
     try:
@@ -68,7 +108,7 @@ def demarrer_serveur(host='127.0.0.1', port=65432):
             try:
                 while True:
                     # Réception des données (BLOQUANT)
-                    donnees = client_socket.recv(1024).decode('utf-8')
+                    donnees = client_socket.recv(1024).decode('utf-8').strip()
                     
                     if not donnees:
                         print(f"Client {adresse_client} déconnecté")
@@ -77,25 +117,25 @@ def demarrer_serveur(host='127.0.0.1', port=65432):
                     print(f"Reçu de {adresse_client}: {donnees}")
                     
                     # Traitement de la requête
-                    try:
-                        requete = json.loads(donnees)
-                        operation = requete.get('operation')
-                        a = requete.get('a')
-                        b = requete.get('b')
+                    if donnees == 'QUIT':
+                        reponse = "Au revoir!"
+                        client_socket.sendall(reponse.encode('utf-8'))
+                        break
+                    
+                    # Format attendu: OPERATION|a|b
+                    parties = donnees.split('|')
+                    
+                    if len(parties) < 2:
+                        reponse = "ERREUR:Format invalide. Utilisez OPERATION|a|b"
+                    else:
+                        operation = parties[0].upper()
+                        a = parties[1]
+                        b = parties[2] if len(parties) > 2 else None
                         
-                        if operation == 'quit':
-                            reponse = {'resultat': 'Au revoir!'}
-                            client_socket.sendall(json.dumps(reponse).encode('utf-8'))
-                            break
-                        
-                        resultat = calculer(operation, a, b)
-                        reponse = {'resultat': resultat}
-                        
-                    except json.JSONDecodeError:
-                        reponse = {'resultat': 'Erreur: Format JSON invalide'}
+                        reponse = calculer(operation, a, b)
                     
                     # Envoi de la réponse
-                    client_socket.sendall(json.dumps(reponse).encode('utf-8'))
+                    client_socket.sendall(reponse.encode('utf-8'))
                     print(f"Réponse envoyée: {reponse}\n")
                     
             except Exception as e:
@@ -118,26 +158,32 @@ if __name__ == "__main__":
 
 ```python
 import socket
-import json
 
-def envoyer_requete(client_socket, operation, a=None, b=None):
+def envoyer_requete(client_socket, message):
     """Envoie une requête au serveur et retourne la réponse"""
     
-    # Préparation de la requête
-    requete = {
-        'operation': operation,
-        'a': a,
-        'b': b
-    }
-    
     # Envoi de la requête au serveur
-    client_socket.sendall(json.dumps(requete).encode('utf-8'))
+    client_socket.sendall(message.encode('utf-8'))
     
     # Réception de la réponse (BLOQUANT)
     reponse = client_socket.recv(1024).decode('utf-8')
     
-    # Décodage de la réponse
-    return json.loads(reponse)
+    return reponse
+
+def afficher_menu():
+    """Affiche le menu des opérations disponibles"""
+    print("\n=== Calculatrice Réseau ===")
+    print("Opérations disponibles:")
+    print("  ADD  - Addition")
+    print("  SUB  - Soustraction")
+    print("  MUL  - Multiplication")
+    print("  DIV  - Division")
+    print("  POW  - Puissance")
+    print("  MOD  - Modulo")
+    print("  SQRT - Racine carrée (un seul nombre)")
+    print("  QUIT - Quitter")
+    print("\nFormat: OPERATION|nombre1|nombre2")
+    print("Exemple: ADD|5|3 ou SQRT|16\n")
 
 def demarrer_client(host='127.0.0.1', port=65432):
     """Démarre le client de calculatrice"""
@@ -149,37 +195,56 @@ def demarrer_client(host='127.0.0.1', port=65432):
         # Connexion au serveur (BLOQUANT)
         print(f"Connexion au serveur {host}:{port}...")
         client_socket.connect((host, port))
-        print("Connecté au serveur!\n")
+        print("Connecté au serveur!")
         
-        print("=== Calculatrice Réseau ===")
-        print("Opérations disponibles: +, -, *, /, **")
-        print("Tapez 'quit' pour quitter\n")
+        afficher_menu()
         
         while True:
             # Saisie de l'opération
-            operation = input("Opération (+, -, *, /, ** ou quit): ").strip()
+            operation = input("Opération (ADD, SUB, MUL, DIV, POW, MOD, SQRT, QUIT): ").strip().upper()
             
-            if operation == 'quit':
-                reponse = envoyer_requete(client_socket, 'quit')
-                print(reponse['resultat'])
+            if operation == 'QUIT':
+                reponse = envoyer_requete(client_socket, 'QUIT')
+                print(reponse)
                 break
             
-            if operation not in ['+', '-', '*', '/', '**']:
+            operations_valides = ['ADD', 'SUB', 'MUL', 'DIV', 'POW', 'MOD', 'SQRT']
+            if operation not in operations_valides:
                 print("Opération invalide!\n")
                 continue
             
             # Saisie des opérandes
             try:
                 a = input("Premier nombre: ").strip()
-                b = input("Deuxième nombre: ").strip()
+                
+                # SQRT ne nécessite qu'un seul nombre
+                if operation == 'SQRT':
+                    message = f"{operation}|{a}|0"
+                else:
+                    b = input("Deuxième nombre: ").strip()
+                    message = f"{operation}|{a}|{b}"
                 
                 # Envoi de la requête et réception de la réponse
-                reponse = envoyer_requete(client_socket, operation, a, b)
+                reponse = envoyer_requete(client_socket, message)
                 
-                print(f"\nRésultat: {a} {operation} {b} = {reponse['resultat']}\n")
+                # Affichage de la réponse
+                if reponse.startswith("RESULTAT:"):
+                    resultat = reponse.split(":", 1)[1]
+                    if operation == 'SQRT':
+                        print(f"\nRésultat: √{a} = {resultat}\n")
+                    else:
+                        symboles = {
+                            'ADD': '+', 'SUB': '-', 'MUL': '*', 
+                            'DIV': '/', 'POW': '**', 'MOD': '%'
+                        }
+                        symbole = symboles.get(operation, operation)
+                        print(f"\nRésultat: {a} {symbole} {b} = {resultat}\n")
+                elif reponse.startswith("ERREUR:"):
+                    erreur = reponse.split(":", 1)[1]
+                    print(f"\nErreur: {erreur}\n")
+                else:
+                    print(f"\nRéponse: {reponse}\n")
                 
-            except ValueError:
-                print("Erreur: Veuillez entrer des nombres valides\n")
             except Exception as e:
                 print(f"Erreur: {e}\n")
                 
@@ -217,117 +282,5 @@ python client.py
 
 ### 3. Exemple d'interaction
 
-```
-Connexion au serveur 127.0.0.1:65432...
-Connecté au serveur!
-
-=== Calculatrice Réseau ===
-Opérations disponibles: +, -, *, /, **
-Tapez 'quit' pour quitter
-
-Opération (+, -, *, /, ** ou quit): +
-Premier nombre: 15
-Deuxième nombre: 7
-
-Résultat: 15 + 7 = 22.0
-
-Opération (+, -, *, /, ** ou quit): *
-Premier nombre: 12
-Deuxième nombre: 5
-
-Résultat: 12 * 5 = 60.0
-
-Opération (+, -, *, /, ** ou quit): /
-Premier nombre: 100
-Deuxième nombre: 0
-
-Résultat: 100 / 0 = Erreur: Division par zéro
-
-Opération (+, -, *, /, ** ou quit): **
-Premier nombre: 2
-Deuxième nombre: 10
-
-Résultat: 2 ** 10 = 1024.0
-
-Opération (+, -, *, /, ** ou quit): quit
-Au revoir!
-Connexion fermée.
-```
-
-## 🔍 Points d'apprentissage
-
-### 1. Communication par JSON
-Les données sont échangées au format JSON pour une sérialisation simple :
-```json
-{"operation": "+", "a": "15", "b": "7"}
-```
-
-### 2. Protocole requête/réponse
-- Le client envoie une requête structurée
-- Le serveur traite et répond avec le résultat
-- Communication synchrone et bloquante
-
-### 3. Gestion des erreurs
-- Division par zéro
-- Valeurs non numériques
-- Opérations non supportées
-- Déconnexions inattendues
-
-### 4. Architecture client-serveur
-- Un serveur peut gérer plusieurs clients séquentiellement
-- Chaque client a sa propre session
-- Fermeture propre des connexions
-
-## 💡 Exercices d'extension
-
-### Niveau débutant
-1. Ajouter d'autres opérations (modulo %, racine carrée)
-2. Créer un mode debug avec plus de logs
-3. Permettre de changer le port via argument en ligne de commande
-
-### Niveau intermédiaire
-4. Implémenter un historique des calculs côté serveur
-5. Ajouter une commande `history` pour voir les derniers calculs
-6. Créer un système d'authentification simple (nom d'utilisateur)
-7. Ajouter la possibilité de faire des calculs avec plus de 2 opérandes
-
-### Niveau avancé
-8. Utiliser le threading pour gérer plusieurs clients simultanément
-9. Implémenter un timeout sur les opérations
-10. Créer un protocole de commandes plus riche (HELP, STATS, etc.)
-11. Ajouter la persistance de l'historique dans un fichier
-12. Créer une version avec sockets non-bloquants (select/asyncio)
-
-## 📚 Ressources
-
-### Documentation Python
-- [Module socket](https://docs.python.org/3/library/socket.html)
-- [Module json](https://docs.python.org/3/library/json.html)
-
-### Concepts réseau
-- **TCP/IP** : protocole de transport fiable
-- **Port** : identifiant d'application (65432 dans cet exemple)
-- **localhost/127.0.0.1** : adresse de bouclage local
-- **Sockets bloquants** : les appels bloquent jusqu'à complétion
-
-## ⚠️ Limitations actuelles
-
-1. **Séquentiel** : le serveur ne gère qu'un client à la fois
-2. **Pas d'authentification** : aucune sécurité
-3. **Réseau local seulement** : configuré pour localhost
-4. **Pas de chiffrement** : communication en clair
-5. **Gestion d'erreurs basique** : pourrait être plus robuste
-
-## 🎓 Ce que vous avez appris
-
-✅ Créer et configurer des sockets TCP  
-✅ Établir une connexion client-serveur  
-✅ Envoyer et recevoir des données via le réseau  
-✅ Sérialiser/désérialiser des données en JSON  
-✅ Gérer la fermeture propre des connexions  
-✅ Comprendre le comportement bloquant des sockets  
-✅ Implémenter un protocole de communication simple  
-
----
 
 **Bon apprentissage ! 🚀**
