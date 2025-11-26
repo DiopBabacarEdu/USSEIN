@@ -614,6 +614,15 @@ void show_users() {
         printf("%s║   Utilisateurs connectés (%d)  ║%s\n", COLOR_CYAN, users->count, COLOR_RESET);
         printf("%s╚═══════════════════════════════╝%s\n", COLOR_CYAN, COLOR_RESET);
         
+        /* IMPORTANT: Selon chat.x, la structure est:
+         * struct user_list {
+         *     struct {
+         *         u_int usernames_len;
+         *         char **usernames_val;
+         *     } usernames;
+         *     int count;
+         * };
+         */
         for (i = 0; i < users->usernames.usernames_len; i++) {
             if (strcmp(users->usernames.usernames_val[i], my_username) == 0) {
                 printf("  %s• %s (vous)%s\n", 
