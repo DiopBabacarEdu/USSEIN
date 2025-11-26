@@ -1,400 +1,508 @@
-# TP RPC avec rpcbind sur Linux
-## Introduction
-Ce TP explique comment installer et utiliser ``` rpcbind ``` sur une machine virtuelle Linux pour créer une application client-serveur RPC (Remote Procedure Call) simple qui effectue l'addition de deux nombres.
+# TP1: Développement d'une Application Client-Serveur avec RPC sur Linux
 
-## Contexte et Évolution de RPC
+## Prérequis
+- Une machine Linux (physique ou virtuelle)
+- Accès aux droits administrateur (sudo)
+- Connexion Internet pour l'installation des paquets
 
-### Contexte Historique
+---
 
-RPC (Remote Procedure Call) est un protocole historique développé dans les années 1980 par Sun Microsystems (maintenant Oracle). Il permet à un programme d'exécuter une procédure sur une machine distante comme si elle était locale, masquant ainsi la complexité des communications réseau. Pendant des décennies, RPC a été la pierre angulaire des systèmes distribués dans les environnements UNIX/Linux.
+## Partie I : Installation et Configuration de rpcbind
 
-### Qui utilise encore RPC aujourd'hui ?
+### Étape 1 : Vérification de l'installation de rpcbind
 
-**Legacy et systèmes embarqués :**
-- **NFS (Network File System)** : La version v3 utilise encore RPC
-- **Systèmes financiers et bancaires** : Certains systèmes legacy
-- **Environnements industriels** : Automatisation, SCADA
-- **Calcul haute performance** : Quelques clusters scientifiques
-
-### Évolutions et Remplacements
-
-**gRPC (Google RPC)** : La révolution moderne
-- Développé par Google en 2015
-- Utilise HTTP/2 et Protocol Buffers
-- Multiplateforme, multilingage
-- Performances bien supérieures
-
-**Autres alternatives modernes :**
-- **Apache Thrift** (Facebook)
-- **JSON-RPC** / **REST APIs**
-- **WebSocket** pour les communications temps réel
-
-### Pourquoi l'étudier aujourd'hui ?
-
-Bien que considéré comme "legacy", RPC reste essentiel à comprendre car :
-
-1. **Fondations conceptuelles** : Les concepts de RPC sous-tendent les technologies modernes
-2. **Maintenance de systèmes existants** : De nombreux systèmes critiques l'utilisent encore
-3. **Pédagogie** : Excellent pour comprendre les principes des appels de procédure distants
-4. **Transition** : Comprendre RPC aide à apprécier les avantages des solutions modernes
-
-RPCbind représente donc une pièce importante de l'histoire de l'informatique distribuée, dont les principes fondamentaux continuent d'influencer les technologies contemporaines.
-
-
-## Partie I : Installation de rpcbind sur Linux
-
-### Vérification/Installation de rpcbind
-
-Ouvrez un terminal et tapez la commande suivante :
+Ouvrez un terminal et exécutez la commande suivante :
 
 ```bash
-$ rpcinfo
+rpcinfo
 ```
 
-Si rpcbind est installé, vous verrez une liste des services RPC enregistrés.
+**Commentaire :** Cette commande liste les services RPC enregistrés. Si rpcbind est installé et actif, vous verrez une liste des services disponibles.
 
-Si rpcbind n'est pas installé, utilisez les commandes suivantes (adaptées selon votre distribution) :
+### Étape 2 : Installation de rpcbind (si nécessaire)
 
-**Pour les distributions basées sur Debian/Ubuntu :**
-```bash
-$ sudo apt-get update
-$ sudo apt-get install rpcbind
-```
-
-**Pour les distributions basées sur Red Hat/CentOS :**
-```bash
-$ sudo yum update
-$ sudo yum install rpcbind
-# ou pour les versions récentes
-$ sudo dnf install rpcbind
-```
-
-**Pour les distributions basées sur Arch Linux :**
-```bash
-$ sudo pacman -Syu
-$ sudo pacman -S rpcbind
-```
-
-Vérifiez à nouveau l'installation avec :
-```bash
-$ rpcinfo
-```
-
-### Création du projet
-
-Créez un répertoire pour votre projet :
+Si la commande précédente retourne une erreur, installez rpcbind :
 
 ```bash
-$ cd /home
-$ sudo mkdir newrpc
-$ cd newrpc
+# Mise à jour de la liste des paquets disponibles
+sudo apt-get update
+
+# Installation du paquet rpcbind
+sudo apt-get install rpcbind
 ```
 
-### Création du fichier de définition RPC
+**Commentaire :** 
+- `apt-get update` : Met à jour l'index des paquets
+- `apt-get install rpcbind` : Installe le service rpcbind nécessaire pour RPC
 
-Créez un fichier `add.x` avec le contenu suivant :
+### Étape 3 : Vérification finale
+
+```bash
+rpcinfo
+```
+
+**Commentaire :** Vérifiez que la commande fonctionne correctement maintenant.
+
+---
+
+## Partie II : Création du Projet Client-Serveur
+
+### Objectif du Projet
+Créer une application client-serveur qui effectue l'addition de deux nombres via RPC.
+
+### Étape 1 : Création de l'arborescence du projet
+
+```bash
+# Retour au répertoire home de l'utilisateur
+cd ~
+
+# Création du répertoire du projet
+sudo mkdir newrpc
+
+# Attribution des droits d'écriture (IMPORTANT pour éviter les problèmes de permissions)
+sudo chmod 777 newrpc
+
+# Déplacement dans le répertoire
+cd newrpc
+```
+
+**Commentaire :** 
+- `cd ~` : Retourne au répertoire personnel (/home/votre_utilisateur)
+- `chmod 777` : Donne tous les droits sur le dossier (lecture, écriture, exécution)
+- Cette étape évite les erreurs de permissions lors de la compilation
+
+### Étape 2 : Création du fichier de définition RPC (add.x)
+
+```bash
+# Création du fichier avec gedit (ou nano si vous préférez)
+gedit add.x
+```
+
+**Contenu du fichier add.x :**
 
 ```c
+/* 
+ * Fichier de définition RPC pour l'addition de deux nombres
+ * IMPORTANT : Respectez scrupuleusement l'indentation et les espaces
+ */
+
+/* Définition de la structure qui contient les deux nombres à additionner */
 struct numbers {
-    int num1;
-    int num2;
+    int num1;  /* Premier nombre */
+    int num2;  /* Deuxième nombre */
 };
 
+/* Définition du programme RPC */
 program ADDITION {
+    /* Définition de la version du programme */
     version ADDITION_1 {
+        /* Déclaration de la procédure distante ADD
+         * Elle prend en paramètre une structure 'numbers'
+         * Elle retourne un entier (int)
+         * Le numéro 1 identifie cette procédure
+         */
         int ADD(numbers) = 1;
-    } = 1;
-} = 0x2fffffff;
+    } = 1;  /* Numéro de version */
+} = 0x2fffffff;  /* Numéro de programme (doit être unique) */
 ```
 
-**Note importante :** Respectez bien l'indentation et les espaces.
+**⚠️ ATTENTION - Points critiques :**
+1. Utilisez des espaces, PAS de tabulations
+2. Respectez exactement les espaces avant et après les signes `=`
+3. N'oubliez pas les points-virgules (`;`)
+4. Sauvegardez le fichier dans le répertoire `newrpc`
 
-### Compilation du fichier add.x
-
-Assurez-vous d'être dans le répertoire `newrpc` :
+### Étape 3 : Compilation du fichier add.x avec rpcgen
 
 ```bash
-$ pwd
+# Assurez-vous d'être dans le bon répertoire
+pwd  # Devrait afficher : /home/votre_utilisateur/newrpc
+
+# Si vous n'y êtes pas :
+cd ~/newrpc
+
+# Génération des fichiers stubs avec rpcgen
+rpcgen -a -C add.x
 ```
 
-Si nécessaire, revenez au répertoire :
+**Commentaire :** 
+- `-a` : Génère tous les fichiers (client, serveur, Makefile)
+- `-C` : Génère du code conforme au standard ANSI C
+- Cette commande crée automatiquement 5 fichiers essentiels
+
+### Étape 4 : Fichiers générés (explication détaillée)
+
+Après la compilation, vous devriez voir ces fichiers :
+
+1. **add.h** : Fichier d'en-tête
+   - Contient les définitions de structures
+   - Définit les constantes (numéros de programme et version)
+   - Déclare les prototypes de fonctions
+
+2. **add_client.c** : Programme client
+   - Contient le stub client
+   - Gère la connexion au serveur
+   - Appelle les procédures distantes
+
+3. **add_server.c** : Programme serveur
+   - Contient le stub serveur
+   - Reçoit les appels RPC
+   - Dirige vers les fonctions appropriées
+
+4. **add_xdr.c** : Routines de sérialisation
+   - Convertit les données en format XDR (External Data Representation)
+   - Assure la compatibilité entre différentes architectures
+
+5. **Makefile.add** : Fichier de compilation
+   - Contient les instructions pour compiler le projet
+
+### Étape 5 : Compilation initiale
+
 ```bash
-$ cd
-$ cd newrpc
+# Compilation avec make
+make -f Makefile.add
 ```
 
-Compilez le fichier add.x :
+**Commentaire :** 
+- Cette commande compile tous les fichiers source
+- Génère les exécutables `add_client` et `add_server`
+- Si des erreurs apparaissent, vérifiez le fichier add.x
 
-```bash
-$ rpcgen -a -C add.x
-```
-
-L'option `-C` indique à rpcgen de générer du code C conforme à la norme ANSI C.
-
-### Fichiers générés
-
-rpcgen génère plusieurs fichiers :
-
-- **add.h** : Fichier d'en-tête contenant les définitions de structures et constantes
-- **add_server.c** : Code squelette du serveur
-- **add_client.c** : Code squelette du client
-- **add_xdr.c** : Code pour la sérialisation/désérialisation des données
-- **Makefile.add** : Makefile pour la compilation
-
-### Compilation des fichiers
-
-Compilez les fichiers générés :
-
-```bash
-$ make -f Makefile.add
-```
-
-Vous devriez voir une sortie similaire à :
-
-```bash
-cc -g    -c -o add_clnt.o add_clnt.c
-cc -g    -c -o add_client.o add_client.c
-cc -g    -c -o add_xdr.o add_xdr.c
-cc -g    -o add_client add_clnt.o add_client.o add_xdr.o -lnsl
-cc -g    -c -o add_svc.o add_svc.c
-cc -g    -c -o add_server.o add_server.c
-cc -g    -o add_server add_svc.o add_server.o add_xdr.o -lnsl
-```
-
-### Exécution des programmes
+### Étape 6 : Test de base
 
 **Terminal 1 (Serveur) :**
 ```bash
-$ sudo ./add_server
+# Démarrage du serveur (nécessite sudo pour bind sur les ports RPC)
+sudo ./add_server
 ```
 
 **Terminal 2 (Client) :**
 ```bash
-$ sudo ./add_client localhost
+# Exécution du client (se connecte au serveur)
+sudo ./add_client localhost
 ```
 
-## Partie II : Personnalisation de l'application
+**Commentaire :** 
+- Le serveur doit être démarré EN PREMIER
+- Si aucun message d'erreur n'apparaît, la compilation est réussie
+- `localhost` indique que le serveur est sur la même machine
 
-### Modification du fichier add_client.c
+---
 
-Remplacez le contenu de `add_client.c` par :
+## Partie III : Implémentation de la Logique Métier
+
+### Étape 1 : Modification du fichier client (add_client.c)
+
+```bash
+# Ouverture du fichier avec nano ou gedit
+nano add_client.c
+```
+
+**Remplacez tout le contenu par :**
 
 ```c
 /*
- * Code client RPC pour effectuer une addition distante
- * Généré par rpcgen et modifié pour l'exemple
+ * Programme Client RPC - Addition de deux nombres
+ * Ce client envoie deux nombres au serveur et reçoit leur somme
  */
 
-#include "add.h"   // Contient les définitions RPC (ADDITION, ADDITION_1, structures)
-#include <stdio.h>
+#include "add.h"
 
-/**
- * Fonction principale du client RPC
- * @param host : adresse du serveur distant
- */
-void add_prog_1(char *host)
+void
+add_prog_1(char *host)
 {
-    CLIENT *clnt;        // Handle du client RPC
-    int *result_1;       // Pointeur vers le résultat de l'addition
-    numbers add_1_arg;   // Structure contenant les deux nombres à additionner
+    CLIENT *clnt;           /* Pointeur vers la structure client RPC */
+    int *result_1;          /* Pointeur pour stocker le résultat */
+    intpair add_1_arg;      /* Structure contenant les arguments (a et b) */
 
 #ifndef DEBUG
-    // Création du client RPC avec le protocole UDP
-    // ADDITION : identifiant du programme RPC
-    // ADDITION_1 : version du programme
-    clnt = clnt_create(host, ADDITION, ADDITION_1, "udp");
+    /* 
+     * Création de la connexion client RPC
+     * - host : adresse du serveur
+     * - ADD_PROG : numéro du programme (défini dans add.h)
+     * - ADD_VERS : version du programme
+     * - "udp" : protocole de transport
+     */
+    clnt = clnt_create(host, ADD_PROG, ADD_VERS, "udp");
     
-    // Vérification de la création du client
+    /* Vérification de la connexion */
     if (clnt == NULL) {
-        clnt_pcreateerror(host);  // Affiche l'erreur de création
+        clnt_pcreateerror(host);  /* Affiche l'erreur de connexion */
         exit(1);
     }
 #endif /* DEBUG */
 
-    // Préparation des données à envoyer au serveur
-    add_1_arg.num1 = 123;  // Premier nombre
-    add_1_arg.num2 = 100;  // Deuxième nombre
-    
-    // Appel de la procédure distante add_1() sur le serveur
-    // Envoie la structure add_1_arg et reçoit un pointeur vers le résultat
+    /* 
+     * Initialisation des valeurs à envoyer au serveur
+     * Vous pouvez modifier ces valeurs pour tester
+     */
+    add_1_arg.a = 123;  /* Premier nombre */
+    add_1_arg.b = 100;  /* Deuxième nombre */
+
+    /* 
+     * Appel de la procédure distante ADD
+     * - add_1 : fonction stub générée par rpcgen
+     * - &add_1_arg : pointeur vers la structure avec les arguments
+     * - clnt : handle du client
+     */
     result_1 = add_1(&add_1_arg, clnt);
     
-    // Vérification du résultat de l'appel RPC
-    if (result_1 == (int *) NULL) {
-        // L'appel a échoué
+    /* Vérification du résultat */
+    if (result_1 == (int *)NULL) {
+        /* L'appel RPC a échoué */
         clnt_perror(clnt, "call failed");
-    } else {
-        // L'appel a réussi, affichage du résultat (devrait être 223)
+    }
+    else {
+        /* Affichage du résultat */
         printf("Résultat de l'addition : %d\n", *result_1);
     }
 
 #ifndef DEBUG
-    // Libération des ressources allouées au client RPC
+    /* Libération des ressources RPC */
     clnt_destroy(clnt);
 #endif /* DEBUG */
 }
 
-/**
- * Point d'entrée du programme
- * @param argc : nombre d'arguments
- * @param argv : tableau des arguments (argv[1] = adresse du serveur)
- */
-int main(int argc, char *argv[])
+int
+main(int argc, char *argv[])
 {
     char *host;
 
-    // Vérification du nombre d'arguments
-    // Le programme nécessite l'adresse du serveur en paramètre
+    /* 
+     * Vérification des arguments de ligne de commande
+     * Le programme attend l'adresse du serveur en argument
+     */
     if (argc < 2) {
         printf("Usage: %s server_host\n", argv[0]);
+        printf("Exemple: %s localhost\n", argv[0]);
         exit(1);
     }
     
-    // Récupération de l'adresse du serveur depuis les arguments
+    /* Récupération de l'adresse du serveur */
     host = argv[1];
     
-    // Appel de la fonction principale du client RPC
+    /* Appel de la fonction principale du client */
     add_prog_1(host);
     
-    exit(0);  // Fin normale du programme
+    exit(0);
 }
 ```
 
-### Modification du fichier add_server.c
+### Étape 2 : Modification du fichier serveur (add_server.c)
 
-Remplacez le contenu de `add_server.c` par :
+```bash
+# Ouverture du fichier
+nano add_server.c
+```
+
+**Recherchez la fonction `add_1_svc` et remplacez-la par :**
 
 ```c
 /*
- * This is sample code generated by rpcgen.
- * These are only templates and you can use them
- * as a guideline for developing your own functions.
+ * Programme Serveur RPC - Addition de deux nombres
+ * Cette fonction est appelée automatiquement quand le client invoque ADD
  */
 
 #include "add.h"
-#include <stdio.h>
 
-int *add_1_svc(numbers *argp, struct svc_req *rqstp)
+int *
+add_1_svc(intpair *argp, struct svc_req *rqstp)
 {
+    /* 
+     * Variable statique pour stocker le résultat
+     * IMPORTANT : doit être static car on retourne son adresse
+     * Une variable locale serait détruite à la fin de la fonction
+     */
     static int result;
 
-    printf("Addition de deux entiers\n");
-    printf("Paramètres : %d, %d\n", argp->num1, argp->num2);
-    result = argp->num1 + argp->num2;
-    printf("Résultat = %d\n", result);
+    /* Affichage côté serveur */
+    printf("========================================\n");
+    printf("Demande d'addition reçue du client\n");
+    printf("Paramètres reçus : %d + %d\n", argp->a, argp->b);
+    
+    /* 
+     * Calcul de l'addition
+     * argp->a : premier nombre (provient de la structure intpair)
+     * argp->b : deuxième nombre
+     */
+    result = argp->a + argp->b;
+    
+    /* Affichage du résultat côté serveur */
+    printf("Résultat calculé : %d\n", result);
+    printf("========================================\n");
+    
+    /* 
+     * Retour de l'adresse du résultat
+     * Le système RPC se charge de renvoyer cette valeur au client
+     */
     return &result;
 }
 ```
 
-### Recompilation
-
-Recompilez les fichiers modifiés :
+### Étape 3 : Recompilation du projet
 
 ```bash
-$ make -f Makefile.add
+# IMPORTANT : Utilisez Makefile.add, pas juste Makefile
+make -f Makefile.add clean   # Nettoie les anciens fichiers compilés
+make -f Makefile.add         # Recompile tout le projet
 ```
 
-### Test de l'application
+**Commentaire :**
+- `clean` : Supprime les anciens fichiers objets (.o) et exécutables
+- Cela évite les conflits avec d'anciennes versions compilées
 
-**Terminal 1 (Serveur) :**
+---
+
+## Partie IV : Exécution et Test de l'Application
+
+### Étape 1 : Démarrage du serveur
+
+**Terminal 1 :**
 ```bash
-$ ./add_server
+# Démarrage du serveur RPC
+./add_server
 ```
 
-**Terminal 2 (Client) :**
+**Commentaire :** 
+- Le serveur se met en attente de connexions
+- Il n'affiche rien tant qu'aucun client ne se connecte
+- Laissez ce terminal ouvert
+
+### Étape 2 : Exécution du client
+
+**Terminal 2 :**
 ```bash
-$ ./add_client localhost
+# Exécution du client (connexion à localhost)
+./add_client localhost
 ```
 
-Vous devriez voir le résultat de l'addition s'afficher.
+**Résultat attendu :**
 
-## Partie III : Versions à jour et bonnes pratiques
-
-### Commandes modernes pour rpcbind
-
-**Vérification du statut de rpcbind :**
-```bash
-$ sudo systemctl status rpcbind
+**Terminal Serveur :**
+```
+========================================
+Demande d'addition reçue du client
+Paramètres reçus : 123 + 100
+Résultat calculé : 223
+========================================
 ```
 
-**Démarrage de rpcbind :**
-```bash
-$ sudo systemctl start rpcbind
+**Terminal Client :**
+```
+Résultat de l'addition : 223
 ```
 
-**Activation au démarrage :**
-```bash
-$ sudo systemctl enable rpcbind
-```
+---
 
-### Sécurité et bonnes pratiques
+## Résolution des Problèmes Courants
 
-1. **Configuration du firewall :**
-```bash
-$ sudo ufw allow 111/tcp
-$ sudo ufw allow 111/udp
-```
-
-2. **Vérification des services RPC :**
-```bash
-$ rpcinfo -p
-```
-
-3. **Utilisation de TCP au lieu d'UDP** (plus fiable) :
-Modifiez la ligne dans `add_client.c` :
-```c
-clnt = clnt_create(host, ADDITION, ADDITION_1, "tcp");
-```
-
-### Script de compilation amélioré
-
-Créez un fichier `compile.sh` :
+### Erreur 1 : "Cannot register service"
 
 ```bash
-#!/bin/bash
+# Vérifier si rpcbind est actif
+sudo systemctl status rpcbind
 
-echo "Nettoyage des anciens fichiers..."
+# Si inactif, le démarrer
+sudo systemctl start rpcbind
+
+# Pour qu'il démarre automatiquement au boot
+sudo systemctl enable rpcbind
+```
+
+### Erreur 2 : "Permission denied"
+
+```bash
+# Donner les droits d'exécution
+chmod +x add_server add_client
+
+# Ou exécuter avec sudo
+sudo ./add_server
+```
+
+### Erreur 3 : Erreurs de compilation "undefined reference"
+
+```bash
+# Recompiler en forçant le nettoyage
 make -f Makefile.add clean
-
-echo "Génération du code RPC..."
-rpcgen -a -C add.x
-
-echo "Compilation..."
 make -f Makefile.add
 
-echo "Vérification des exécutables..."
-if [ -f "add_client" ] && [ -f "add_server" ]; then
-    echo "Compilation réussie!"
-    echo "Pour tester :"
-    echo "Terminal 1: ./add_server"
-    echo "Terminal 2: ./add_client localhost"
-else
-    echo "Erreur lors de la compilation"
-fi
+# Si le problème persiste, vérifier que add.h est bien inclus dans les .c
 ```
 
-Rendez-le exécutable :
+### Erreur 4 : "intpair undeclared"
+
+**Solution :** 
+- Le fichier add.h n'a pas défini `intpair`
+- Régénérer les fichiers : `rpcgen -a -C add.x`
+- Vérifier que `struct numbers` dans add.x est correct
+
+### Erreur 5 : Serveur ne répond pas
+
 ```bash
-$ chmod +x compile.sh
+# Vérifier que le serveur écoute
+rpcinfo -p localhost
+
+# Redémarrer rpcbind si nécessaire
+sudo systemctl restart rpcbind
 ```
 
-### Dépannage
+---
 
-**Erreurs courantes et solutions :**
+## Exercices d'Extension
 
-1. **"rpcbind: command not found"** : Réinstallez rpcbind
-2. **"Connection refused"** : Vérifiez que le serveur est démarré
-3. **"Program not registered"** : Redémarrez le serveur
-4. **Problèmes de compilation** : Vérifiez que les packages de développement sont installés
-   ```bash
-   $ sudo apt-get install build-essential
-   ```
+### Exercice 1 : Modifier les valeurs
+Modifiez les valeurs dans `add_client.c` (lignes avec `add_1_arg.a` et `add_1_arg.b`) pour tester d'autres additions.
+
+### Exercice 2 : Ajouter une soustraction
+1. Ajoutez une nouvelle procédure `SUB` dans `add.x`
+2. Régénérez les fichiers avec `rpcgen`
+3. Implémentez la fonction `sub_1_svc` dans le serveur
+
+### Exercice 3 : Saisie interactive
+Modifiez le client pour demander les nombres à l'utilisateur avec `scanf()`.
+
+---
+
+## Nettoyage Final
+
+```bash
+# Pour arrêter le serveur : Ctrl+C dans le terminal du serveur
+
+# Pour supprimer tous les fichiers générés
+cd ~/newrpc
+make -f Makefile.add clean
+
+# Pour supprimer complètement le projet
+cd ~
+rm -rf newrpc
+```
+
+---
+
+## Résumé des Commandes Essentielles
+
+| Commande | Description |
+|----------|-------------|
+| `rpcgen -a -C add.x` | Génère tous les fichiers nécessaires |
+| `make -f Makefile.add` | Compile le projet |
+| `make -f Makefile.add clean` | Nettoie les fichiers compilés |
+| `./add_server` | Lance le serveur |
+| `./add_client localhost` | Lance le client |
+| `rpcinfo -p` | Liste les services RPC actifs |
+
+---
 
 ## Conclusion
 
-Ce TP vous a guidé à travers l'installation de rpcbind, la création d'une application client-serveur RPC simple, et la personnalisation du code généré. Les principes présentés ici peuvent être étendus pour créer des applications RPC plus complexes.
+Vous avez maintenant une application client-serveur fonctionnelle utilisant RPC. Cette architecture permet à des programmes sur des machines différentes de communiquer facilement. RPC est utilisé dans de nombreux systèmes distribués modernes.
 
-Pour aller plus loin, consultez la documentation de rpcgen avec :
-```bash
-$ man rpcgen
-```
+**Points clés à retenir :**
+- Le fichier `.x` définit l'interface du service
+- `rpcgen` génère automatiquement le code de communication
+- Le serveur implémente la logique métier
+- Le client appelle les fonctions distantes comme des fonctions locales
+- XDR assure la compatibilité entre différentes architectures
+
+---
+
+**Auteur du tutoriel** | **Date de mise à jour :** 2025
