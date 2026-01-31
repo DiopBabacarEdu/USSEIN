@@ -39,7 +39,7 @@ docker run --rm -v $(pwd):/app -w /app openjdk:17 java Hello
 **Créer un fichier `Dockerfile-java` :**
 ```dockerfile
 # Image de base
-FROM openjdk:17
+FROM eclipse-temurin:17-jdk
 
 # Informations de maintenance
 LABEL maintainer="etudiant@universite.sn"
