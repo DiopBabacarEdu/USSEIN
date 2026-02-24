@@ -293,63 +293,6 @@ nano add_server.c
 
 ```c
 /*
- * Programme Client RPC - Addition de deux nombres
- */
-
-#include <stdio.h>
-#include <stdlib.h>
-#include "add.h"
-
-void
-add_prog_1(char *host)
-{
-    CLIENT *clnt;
-    int *result;
-    numbers args;   /* Structure EXACTEMENT comme dans add.x */
-
-#ifndef DEBUG
-    clnt = clnt_create(host, ADDITION, ADDITION_1, "udp");
-    if (clnt == NULL) {
-        clnt_pcreateerror(host);
-        exit(1);
-    }
-#endif
-
-    /* Initialisation des paramètres */
-    printf("Donner un premier nombre \n"); scanf("%d",&args.num1);
-    printf("Donner un second nombre \n"); scanf("%d",&args.num2);
-
-    //args.num1 = 123;
-    //args.num2 = 100;
-
-    /* Appel RPC */
-    result = add_1(&args, clnt);
-
-    if (result == NULL) {
-        clnt_perror(clnt, "call failed");
-    } else {
-        printf("Résultat : %d + %d = %d\n",
-               args.num1, args.num2, *result);
-    }
-
-#ifndef DEBUG
-    clnt_destroy(clnt);
-#endif
-}
-
-int
-main(int argc, char *argv[])
-{
-    if (argc < 2) {
-        fprintf(stderr, "Usage: %s server_host\n", argv[0]);
-        exit(1);
-    }
-
-    add_prog_1(argv[1]);
-    return 0;
-}
-babs@Babs:/mnt/c/Users/ciner/rpc/newrpc$ cat add_server.c
-/*
  * Programme Serveur RPC - Addition de deux nombres
  */
 
@@ -372,7 +315,8 @@ add_1_svc(numbers *argp, struct svc_req *rqstp)
     printf("====================================\n");
 
     return &result;
-}```
+}
+```
 
 ### Étape 3 : Recompilation du projet 
 
