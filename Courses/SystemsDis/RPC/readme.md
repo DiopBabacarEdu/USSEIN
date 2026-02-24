@@ -168,6 +168,29 @@ make -f Makefile.add
 - Génère les exécutables `add_client` et `add_server`
 - Si des erreurs apparaissent, vérifiez le fichier add.x
 
+Si vous tombez sur une erreur de Makefile, comme l'erreur ci-dessous,
+```bash
+make -f Makefile.add
+cc -g    -c -o add_clnt.o add_clnt.c
+In file included from add_clnt.c:7:
+add.h:9:10: fatal error: rpc/rpc.h: No such file or directory
+    9 | #include <rpc/rpc.h>
+      |          ^~~~~~~~~~~
+compilation terminated.
+make: *** [<builtin>: add_clnt.o] Error 1
+```
+il faudrait mettre à jour la liste de vos paquets et installer librpc, 
+```bash
+sudo apt update
+sudo apt install libtirpc-dev
+```
+
+et enfin changer le Makefile en modifiant ces deux lignes comme suit :
+```bash
+CFLAGS += -I/usr/include/tirpc
+LDLIBS += -ltirpc
+```
+
 ### Étape 6 : Test de base
 
 **Terminal 1 (Serveur) :**
@@ -203,88 +226,59 @@ nano add_client.c
 ```c
 /*
  * Programme Client RPC - Addition de deux nombres
- * Ce client envoie deux nombres au serveur et reçoit leur somme
  */
 
+#include <stdio.h>
+#include <stdlib.h>
 #include "add.h"
 
 void
 add_prog_1(char *host)
 {
-    CLIENT *clnt;           /* Pointeur vers la structure client RPC */
-    int *result_1;          /* Pointeur pour stocker le résultat */
-    intpair add_1_arg;      /* Structure contenant les arguments (a et b) */
+    CLIENT *clnt;
+    int *result;
+    numbers args;   /* Structure EXACTEMENT comme dans add.x */
 
 #ifndef DEBUG
-    /* 
-     * Création de la connexion client RPC
-     * - host : adresse du serveur
-     * - ADD_PROG : numéro du programme (défini dans add.h)
-     * - ADD_VERS : version du programme
-     * - "udp" : protocole de transport
-     */
-    clnt = clnt_create(host, ADD_PROG, ADD_VERS, "udp");
-    
-    /* Vérification de la connexion */
+    clnt = clnt_create(host, ADDITION, ADDITION_1, "udp");
     if (clnt == NULL) {
-        clnt_pcreateerror(host);  /* Affiche l'erreur de connexion */
+        clnt_pcreateerror(host);
         exit(1);
     }
-#endif /* DEBUG */
+#endif
 
-    /* 
-     * Initialisation des valeurs à envoyer au serveur
-     * Vous pouvez modifier ces valeurs pour tester
-     */
-    add_1_arg.a = 123;  /* Premier nombre */
-    add_1_arg.b = 100;  /* Deuxième nombre */
+    /* Initialisation des paramètres */
+    printf("Donner un premier nombre \n"); scanf("%d",&args.num1);
+    printf("Donner un second nombre \n"); scanf("%d",&args.num2);
 
-    /* 
-     * Appel de la procédure distante ADD
-     * - add_1 : fonction stub générée par rpcgen
-     * - &add_1_arg : pointeur vers la structure avec les arguments
-     * - clnt : handle du client
-     */
-    result_1 = add_1(&add_1_arg, clnt);
-    
-    /* Vérification du résultat */
-    if (result_1 == (int *)NULL) {
-        /* L'appel RPC a échoué */
+    //args.num1 = 123;
+    //args.num2 = 100;
+
+    /* Appel RPC */
+    result = add_1(&args, clnt);
+
+    if (result == NULL) {
         clnt_perror(clnt, "call failed");
-    }
-    else {
-        /* Affichage du résultat */
-        printf("Résultat de l'addition : %d\n", *result_1);
+    } else {
+        printf("Résultat : %d + %d = %d\n",
+               args.num1, args.num2, *result);
     }
 
 #ifndef DEBUG
-    /* Libération des ressources RPC */
     clnt_destroy(clnt);
-#endif /* DEBUG */
+#endif
 }
 
 int
 main(int argc, char *argv[])
 {
-    char *host;
-
-    /* 
-     * Vérification des arguments de ligne de commande
-     * Le programme attend l'adresse du serveur en argument
-     */
     if (argc < 2) {
-        printf("Usage: %s server_host\n", argv[0]);
-        printf("Exemple: %s localhost\n", argv[0]);
+        fprintf(stderr, "Usage: %s server_host\n", argv[0]);
         exit(1);
     }
-    
-    /* Récupération de l'adresse du serveur */
-    host = argv[1];
-    
-    /* Appel de la fonction principale du client */
-    add_prog_1(host);
-    
-    exit(0);
+
+    add_prog_1(argv[1]);
+    return 0;
 }
 ```
 
@@ -299,57 +293,94 @@ nano add_server.c
 
 ```c
 /*
- * Programme Serveur RPC - Addition de deux nombres
- * Cette fonction est appelée automatiquement quand le client invoque ADD
+ * Programme Client RPC - Addition de deux nombres
  */
 
+#include <stdio.h>
+#include <stdlib.h>
+#include "add.h"
+
+void
+add_prog_1(char *host)
+{
+    CLIENT *clnt;
+    int *result;
+    numbers args;   /* Structure EXACTEMENT comme dans add.x */
+
+#ifndef DEBUG
+    clnt = clnt_create(host, ADDITION, ADDITION_1, "udp");
+    if (clnt == NULL) {
+        clnt_pcreateerror(host);
+        exit(1);
+    }
+#endif
+
+    /* Initialisation des paramètres */
+    printf("Donner un premier nombre \n"); scanf("%d",&args.num1);
+    printf("Donner un second nombre \n"); scanf("%d",&args.num2);
+
+    //args.num1 = 123;
+    //args.num2 = 100;
+
+    /* Appel RPC */
+    result = add_1(&args, clnt);
+
+    if (result == NULL) {
+        clnt_perror(clnt, "call failed");
+    } else {
+        printf("Résultat : %d + %d = %d\n",
+               args.num1, args.num2, *result);
+    }
+
+#ifndef DEBUG
+    clnt_destroy(clnt);
+#endif
+}
+
+int
+main(int argc, char *argv[])
+{
+    if (argc < 2) {
+        fprintf(stderr, "Usage: %s server_host\n", argv[0]);
+        exit(1);
+    }
+
+    add_prog_1(argv[1]);
+    return 0;
+}
+babs@Babs:/mnt/c/Users/ciner/rpc/newrpc$ cat add_server.c
+/*
+ * Programme Serveur RPC - Addition de deux nombres
+ */
+
+#include <stdio.h>
 #include "add.h"
 
 int *
-add_1_svc(intpair *argp, struct svc_req *rqstp)
+add_1_svc(numbers *argp, struct svc_req *rqstp)
 {
-    /* 
-     * Variable statique pour stocker le résultat
-     * IMPORTANT : doit être static car on retourne son adresse
-     * Une variable locale serait détruite à la fin de la fonction
-     */
-    static int result;
+    static int result;  /* OBLIGATOIREMENT static */
 
-    /* Affichage côté serveur */
-    printf("========================================\n");
-    printf("Demande d'addition reçue du client\n");
-    printf("Paramètres reçus : %d + %d\n", argp->a, argp->b);
-    
-    /* 
-     * Calcul de l'addition
-     * argp->a : premier nombre (provient de la structure intpair)
-     * argp->b : deuxième nombre
-     */
-    result = argp->a + argp->b;
-    
-    /* Affichage du résultat côté serveur */
+    printf("====================================\n");
+    printf("Requête reçue du client\n");
+    printf("Valeurs reçues : %d + %d\n",
+           argp->num1, argp->num2);
+
+    result = argp->num1 + argp->num2;
+
     printf("Résultat calculé : %d\n", result);
-    printf("========================================\n");
-    
-    /* 
-     * Retour de l'adresse du résultat
-     * Le système RPC se charge de renvoyer cette valeur au client
-     */
-    return &result;
-}
-```
+    printf("====================================\n");
 
-### Étape 3 : Recompilation du projet
+    return &result;
+}```
+
+### Étape 3 : Recompilation du projet 
 
 ```bash
 # IMPORTANT : Utilisez Makefile.add, pas juste Makefile
 make -f Makefile.add clean   # Nettoie les anciens fichiers compilés
 make -f Makefile.add         # Recompile tout le projet
 ```
-
-**Commentaire :**
-- `clean` : Supprime les anciens fichiers objets (.o) et exécutables
-- Cela évite les conflits avec d'anciennes versions compilées
 
 ---
 
@@ -379,18 +410,11 @@ make -f Makefile.add         # Recompile tout le projet
 **Résultat attendu :**
 
 **Terminal Serveur :**
-```
-========================================
-Demande d'addition reçue du client
-Paramètres reçus : 123 + 100
-Résultat calculé : 223
-========================================
-```
+<img width="1260" height="277" alt="image" src="https://github.com/user-attachments/assets/8cc161f1-f38f-4af7-bc28-9bb9afe609ec" />
+
 
 **Terminal Client :**
-```
-Résultat de l'addition : 223
-```
+<img width="1485" height="92" alt="image" src="https://github.com/user-attachments/assets/f61955ab-7509-45ef-b14a-ad1b914415d6" />
 
 ---
 
@@ -450,16 +474,10 @@ sudo systemctl restart rpcbind
 
 ## Exercices d'Extension
 
-### Exercice 1 : Modifier les valeurs
-Modifiez les valeurs dans `add_client.c` (lignes avec `add_1_arg.a` et `add_1_arg.b`) pour tester d'autres additions.
-
-### Exercice 2 : Ajouter une soustraction
+### Ajouter une soustraction
 1. Ajoutez une nouvelle procédure `SUB` dans `add.x`
 2. Régénérez les fichiers avec `rpcgen`
 3. Implémentez la fonction `sub_1_svc` dans le serveur
-
-### Exercice 3 : Saisie interactive
-Modifiez le client pour demander les nombres à l'utilisateur avec `scanf()`.
 
 ---
 
@@ -504,5 +522,3 @@ Vous avez maintenant une application client-serveur fonctionnelle utilisant RPC.
 - XDR assure la compatibilité entre différentes architectures
 
 ---
-
-**Auteur du tutoriel** | **Date de mise à jour :** 2025
